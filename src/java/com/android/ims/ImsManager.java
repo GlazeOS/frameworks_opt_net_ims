@@ -168,6 +168,7 @@ public class ImsManager {
 
     private Context mContext;
     private int mPhoneId;
+    private static int mImsPhoneId;
     private IImsService mImsService = null;
     private ImsServiceDeathRecipient mDeathRecipient = new ImsServiceDeathRecipient();
     // Ut interface for the supplementary service configuration
@@ -891,7 +892,7 @@ public class ImsManager {
      * @see #getServiceId
      */
     public int open(int serviceClass, PendingIntent incomingCallPendingIntent,
-            ImsConnectionStateListener listener) throws ImsException {
+            ImsConnectionStateListener listener, int imsPhoneId) throws ImsException {
         checkAndThrowExceptionIfServiceUnavailable();
 
         if (incomingCallPendingIntent == null) {
@@ -903,9 +904,10 @@ public class ImsManager {
         }
 
         int result = 0;
+        mImsPhoneId = imsPhoneId;
 
         try {
-            result = mImsService.open(mPhoneId, serviceClass, incomingCallPendingIntent,
+            result = mImsService.open(mImsPhoneId, serviceClass, incomingCallPendingIntent,
                     createRegistrationListenerProxy(serviceClass, listener));
         } catch (RemoteException e) {
             throw new ImsException("open()", e,
@@ -1229,8 +1231,11 @@ public class ImsManager {
         CarrierConfigManager configManager = (CarrierConfigManager) context.getSystemService(
                 Context.CARRIER_CONFIG_SERVICE);
         PersistableBundle b = null;
-        if (configManager != null) {
-            b = configManager.getConfig();
+        int[] subId = SubscriptionManager.getSubId(mImsPhoneId);
+        SubscriptionManager subscriptionManager = SubscriptionManager.from(context);
+        if (configManager != null && subId != null && subscriptionManager != null &&
+                subscriptionManager.isActiveSubId(subId[0])) {
+            b = configManager.getConfigForSubId(subId[0]);
         }
         if (b != null) {
             return b.getBoolean(key);
@@ -1458,7 +1463,7 @@ public class ImsManager {
 
             if (mContext != null) {
                 Intent intent = new Intent(ACTION_IMS_SERVICE_DOWN);
-                intent.putExtra(EXTRA_PHONE_ID, mPhoneId);
+                intent.putExtra(EXTRA_PHONE_ID, mImsPhoneId);
                 mContext.sendBroadcast(new Intent(intent));
             }
         }
